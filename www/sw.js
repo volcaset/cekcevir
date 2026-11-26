@@ -1,6 +1,6 @@
 // ÇekÇevir service worker: uygulamanın internetsiz açılmasını sağlar.
 // Sürümü her yayında artır ki telefonlar yeni dosyaları alsın.
-const VERSION = 'cekcevir-v0.2.1';
+const VERSION = 'cekcevir-v0.2.2';
 // Dosya adları sürüm içerdiği için bu önbellek uygulama güncellemelerinde silinmez
 const RUNTIME = 'cekcevir-runtime-tfjs-4.3.2-ort-1.31.0-dev.20260914';
 const RUNTIME_HOSTS = ['https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/'];
