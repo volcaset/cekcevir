@@ -2,6 +2,7 @@
 // - Paketi indirir, ilerlemeyi bildirir, cihazda kalıcı saklanmasını ister
 // - Çeviri motoru olarak translator.js'e kaydolur
 import { LANGUAGES } from '../data/languages.js';
+import { downloadModel, clearPartial, partialBytes } from './downloader.js';
 
 export const MODEL_ID = 'Xenova/nllb-200-distilled-600M';
 export const MODEL_FILES = [
@@ -104,6 +105,14 @@ async function doInstall() {
   const fromCache = await verifyCache();
   setStatus(fromCache ? 'loading' : 'downloading', { error: '', progress: { loaded: 0, total: 0 } });
   try {
+    if (!fromCache) {
+      // Parça parça, kaldığı yerden devam eden indirme
+      await downloadModel({
+        modelId: MODEL_ID, files: MODEL_FILES, cacheName: CACHE_NAME,
+        onProgress: (p) => { ai.progress = p; emit(); },
+      });
+      setStatus('loading', { progress: { loaded: 0, total: 0 } });
+    }
     const res = await call({ type: 'load' });
     try { localStorage.setItem(READY_FLAG, '1'); } catch (_) { /* yok say */ }
     setStatus('ready', { threads: res.threads || 1 });
@@ -136,8 +145,12 @@ export async function uninstall() {
     for (const req of await cache.keys()) if (req.url.includes(MODEL_ID)) await cache.delete(req);
   } catch (_) { /* yok say */ }
   try { localStorage.removeItem(READY_FLAG); } catch (_) { /* yok say */ }
+  await clearPartial();
   setStatus('none', { progress: { loaded: 0, total: 0 } });
 }
+
+// Yarım kalmış indirme var mı? (MB olarak)
+export async function partialMB() { return Math.round((await partialBytes()) / 1e6); }
 
 // translator.js için motor
 export function createAiEngine(regionCodeOf) {

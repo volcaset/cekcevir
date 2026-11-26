@@ -16,6 +16,8 @@ const APP_SHELL = [
   './js/engine/corrections.js',
   './js/engine/ai.js',
   './js/engine/ai.worker.js',
+  './js/engine/downloader.js',
+  './data/tatoeba-tr-ar.json',
   './js/data/languages.js',
   './js/data/phrases.js',
   './js/data/regions.js',

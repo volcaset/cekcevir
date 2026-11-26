@@ -42,3 +42,11 @@ test('Harekesiz Arapça (yapay zeka çıktısı) sözlükle doğru okunur', () =
   assert.equal(arabicToTurkish('والشاي'), "Ve'ş-şây");
   assert.equal(arabicToTurkish('أين المطار'), "Ayne'l-metâr");
 });
+
+import fs from 'node:fs';
+test('Tatoeba cümle seti geçerli', () => {
+  const d = JSON.parse(fs.readFileSync(new URL('../www/data/tatoeba-tr-ar.json', import.meta.url)));
+  assert.ok(d.count > 20000);
+  assert.equal(d.license, 'CC BY 2.0 FR');
+  assert.ok(d.pairs.every((p) => p.length === 2 && p[0] && p[1]));
+});

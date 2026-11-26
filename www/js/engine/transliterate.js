@@ -124,7 +124,7 @@ function transliterateArabicWord(word, isLastInPhrase) {
       if (wordStart && ch === 'ا') v = 'i';
       else if (wordStart && ch === 'أ') v = 'e';
       else if (wordStart && ch === 'إ') v = 'i';
-      else if (ch === 'ي' && cons === 'y' && !/[aeiouâîû]$/.test(out.slice(0, -1)) ) { out = out.slice(0, -1) + 'i'; lastVowel = 'i'; }
+      else if (ch === 'ي' && cons === 'y' && !wordStart && !/[aeiouâîû]$/.test(out.slice(0, -1)) ) { out = out.slice(0, -1) + 'i'; lastVowel = 'i'; }
       else if (ch === 'و' && !wordStart && !/[aeiouâîû]$/.test(out.slice(0, -1))) { out = out.slice(0, -1) + 'u'; lastVowel = 'u'; }
       else if (bareWord && cons && !/['ʼ]/.test(cons)) {
         // Tamamen harekesiz kelime: hece tahmini. Uzun ünlü harfinden ya da

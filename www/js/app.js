@@ -3,9 +3,11 @@ import { LANGUAGES, DEFAULT_PAIR } from './data/languages.js';
 import { REGIONS, detectRegion, regionInfo } from './data/regions.js';
 import { translate, examplePhrases, registerEngine } from './engine/translator.js';
 import { correctionsEngine, saveCorrection } from './engine/corrections.js';
-import { ai, createAiEngine, install as installAi, uninstall as uninstallAi, warmUp as warmUpAi, isInstalled as aiInstalled, storageInfo, APPROX_SIZE_MB } from './engine/ai.js';
+import { tatoebaEngine } from './engine/tatoeba.js';
+import { ai, createAiEngine, install as installAi, uninstall as uninstallAi, warmUp as warmUpAi, isInstalled as aiInstalled, storageInfo, APPROX_SIZE_MB, partialMB } from './engine/ai.js';
 
 registerEngine(correctionsEngine, { priority: true });
+registerEngine(tatoebaEngine);
 // Yapay zeka motoru en sona: önce düzeltmeler ve hazır cümleler denenir
 registerEngine(createAiEngine((lang) => regionInfo(lang, regionOf(lang))?.nllb));
 import { readingFor } from './engine/transliterate.js';
@@ -337,7 +339,7 @@ function renderAi() {
   bar.classList.toggle('indeterminate', ai.status === 'loading' && !total);
   dl.hidden = ai.status === 'ready' || ai.status === 'downloading' || ai.status === 'loading';
   rm.hidden = ai.status !== 'ready';
-  dl.textContent = ai.status === 'error' ? 'Tekrar dene' : `İndir (≈${APPROX_SIZE_MB} MB)`;
+  dl.textContent = ai.status === 'error' ? 'Kaldığı yerden devam et' : `İndir (≈${APPROX_SIZE_MB} MB)`;
   st.className = 'ai-status ' + ai.status;
   st.textContent = {
     none: 'Henüz indirilmedi. Şu an sadece hazır cümleler ve senin düzeltmelerin çevriliyor.',
@@ -354,6 +356,8 @@ async function openAiSheet() {
   $('.ai-storage', aiSheet).textContent = free
     ? `Bu cihazda uygulamaya ayrılan boş alan: ≈${(free / 1e9).toFixed(1)} GB${info.persisted ? ' · kalıcı saklama açık' : ''}`
     : '';
+  const part = ai.status === 'none' || ai.status === 'error' ? await partialMB() : 0;
+  if (part > 0) $('.ai-download', aiSheet).textContent = `Kaldığı yerden devam et (${part} MB inmişti)`;
   if (!aiSheet.open) aiSheet.showModal();
 }
 ai.on(renderAi);
@@ -459,6 +463,10 @@ async function checkNet() {
 }
 function updateNet() { showNet(navigator.onLine); checkNet(); }
 window.addEventListener('online', updateNet);
+// İnternet geri gelince yarım kalan yapay zeka indirmesine kendiliğinden devam et
+window.addEventListener('online', async () => {
+  if (ai.status === 'error' && (await partialMB()) > 0) { toast('İnternet geldi, indirme kaldığı yerden sürüyor.'); installAi(); }
+});
 window.addEventListener('offline', updateNet);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNet(); });
 setInterval(() => { if (!document.hidden) checkNet(); }, 20000);
