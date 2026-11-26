@@ -1,6 +1,6 @@
 // ÇekÇevir service worker: uygulamanın internetsiz açılmasını sağlar.
 // Sürümü her yayında artır ki telefonlar yeni dosyaları alsın.
-const VERSION = 'cekcevir-v0.1.1';
+const VERSION = 'cekcevir-v0.1.2';
 const APP_SHELL = [
   './',
   './index.html',

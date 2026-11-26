@@ -5,10 +5,10 @@ import { translate, examplePhrases, registerEngine } from './engine/translator.j
 import { correctionsEngine, saveCorrection } from './engine/corrections.js';
 
 registerEngine(correctionsEngine, { priority: true });
-import { readingFor, latinize } from './engine/transliterate.js';
+import { readingFor } from './engine/transliterate.js';
 import { canListen, listen, stopListening, canSpeak, speak } from './speech.js';
 
-const APP_VERSION = '0.1.1';
+const APP_VERSION = '0.1.2';
 const DELIVERY_DELAY_MS = 1000; // karşı tarafa aktarım gecikmesi
 
 // ---------- Ayarlar (cihazda saklanır) ----------
@@ -162,7 +162,7 @@ async function handleUtterance(side, text) {
   clearHint(listenerFeed);
   const pending = addBubble(listenerFeed, buildPendingBubble());
   setTimeout(() => {
-    const heard = buildHeardBubble(res.text, to);
+    const heard = buildHeardBubble(res.text, to, res.source || text, from);
     pending.replaceWith(heard);
     said._heard = heard;
     listenerFeed.scrollTop = listenerFeed.scrollHeight;
@@ -235,7 +235,7 @@ $('.edit-form', editor).addEventListener('submit', (e) => {
   saveCorrection(original, fromLang, toLang, fixed);
   const fresh = buildSaidBubble(original, fromLang, fixed, toLang, 'user');
   if (editing._heard) {
-    const heard = buildHeardBubble(fixed, toLang);
+    const heard = buildHeardBubble(fixed, toLang, original, fromLang);
     editing._heard.replaceWith(heard);
     fresh._heard = heard;
   }
@@ -245,13 +245,22 @@ $('.edit-form', editor).addEventListener('submit', (e) => {
   toast('Düzeltme kaydedildi. Bu cümle artık hep böyle çevrilecek.');
 });
 
-function buildHeardBubble(translated, toLang) {
+// Karşı tarafın ekranı: çeviri kendi dilinde + konuşanın asıl cümlesinin
+// karşı tarafın alfabesiyle okunuşu (o da konuşanın dilini öğrensin).
+function buildHeardBubble(translated, toLang, original, fromLang) {
   const b = el('div', 'bubble heard');
-  const row = el('div', 'b-row');
-  row.append(textLine('b-main', translated, toLang), speakBtn(translated, toLang, 'Dinle'));
-  b.append(row);
-  const latin = latinize(translated, toLang);
-  if (latin) b.append(textLine('b-latin', latin, 'tr'));
+  b.append(textLine('b-main', translated, toLang));
+  if (original) {
+    const reading = readingFor(original, fromLang, toLang);
+    const box = el('div', 'b-reading');
+    const label = el('span', 'b-label', toLang === 'ar' ? `كيف تُنطق بال${fromLang === 'tr' ? 'تركية' : LANGUAGES[fromLang].native}:` : `${LANGUAGES[fromLang].name} okunuşu:`);
+    label.dir = LANGUAGES[toLang].dir;
+    const row = el('div', 'b-row');
+    row.append(textLine('b-read', reading || original, toLang), speakBtn(original, fromLang, 'Aslını dinle'));
+    box.append(label, row);
+    if (reading) box.append(textLine('b-script', original, fromLang));
+    b.append(box);
+  }
   return b;
 }
 

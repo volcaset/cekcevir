@@ -28,11 +28,13 @@ const phrasebook = {
     const key = normalize(text, from);
     if (!key) return null;
     const keysOf = (p) => [from, ...Object.keys(p).filter((k) => k.startsWith(from + '_'))];
-    const hit = PHRASES.find((p) => keysOf(p).some((k) => normalize(p[k], from) === key));
+    let srcKey = null;
+    const hit = PHRASES.find((p) => (srcKey = keysOf(p).find((k) => normalize(p[k], from) === key)));
     if (!hit) return null;
     const region = opts.regions?.[to];
     const out = (region && hit[`${to}_${region}`]) || hit[to];
-    return out ? { text: out, engine: this.id } : null;
+    // source: kaynak cümlenin harekeli/düzgün hali (okunuş için)
+    return out ? { text: out, engine: this.id, source: hit[srcKey] } : null;
   },
 };
 engines.push(phrasebook);
