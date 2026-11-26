@@ -3,12 +3,17 @@ import { LANGUAGES, DEFAULT_PAIR } from './data/languages.js';
 import { REGIONS, detectRegion, regionInfo } from './data/regions.js';
 import { translate, examplePhrases, registerEngine } from './engine/translator.js';
 import { correctionsEngine, saveCorrection } from './engine/corrections.js';
+import { tatoebaEngine } from './engine/tatoeba.js';
+import { ai, createAiEngine, install as installAi, uninstall as uninstallAi, warmUp as warmUpAi, isInstalled as aiInstalled, storageInfo, APPROX_SIZE_MB, partialMB } from './engine/ai.js';
 
 registerEngine(correctionsEngine, { priority: true });
+registerEngine(tatoebaEngine);
+// Yapay zeka motoru en sona: önce düzeltmeler ve hazır cümleler denenir
+registerEngine(createAiEngine((lang) => regionInfo(lang, regionOf(lang))?.nllb));
 import { readingFor } from './engine/transliterate.js';
 import { canListen, listen, stopListening, canSpeak, speak } from './speech.js';
 
-const APP_VERSION = '0.1.2';
+const APP_VERSION = '0.2.0';
 const DELIVERY_DELAY_MS = 1000; // karşı tarafa aktarım gecikmesi
 
 // ---------- Ayarlar (cihazda saklanır) ----------
@@ -145,18 +150,29 @@ function swapLangs() {
 async function handleUtterance(side, text) {
   const from = state.langs[side];
   const to = state.langs[other(side)];
-  const res = await translate(text, from, to, { regions: { [from]: regionOf(from), [to]: regionOf(to) } });
   const speakerFeed = $('.feed', panes[side]);
   const listenerFeed = $('.feed', panes[other(side)]);
   clearHint(speakerFeed);
 
+  // Çeviri sürerken konuşanın ekranında "çevriliyor" balonu
+  const thinking = addBubble(speakerFeed, buildThinkingBubble(text, from));
+  let res = null;
+  try {
+    res = await translate(text, from, to, { regions: { [from]: regionOf(from), [to]: regionOf(to) } });
+  } catch (err) {
+    console.warn('[ÇekÇevir] çeviri hatası', err);
+  }
+
   if (!res) {
-    addBubble(speakerFeed, buildMissBubble(text, from));
+    thinking.replaceWith(buildMissBubble(text, from));
+    speakerFeed.scrollTop = speakerFeed.scrollHeight;
     return;
   }
 
   // 1) Konuşanın ekranı: kendi cümlesi + çevirinin kendi alfabesindeki okunuşu
-  const said = addBubble(speakerFeed, buildSaidBubble(text, from, res.text, to, res.engine));
+  const said = buildSaidBubble(text, from, res.text, to, res.engine);
+  thinking.replaceWith(said);
+  speakerFeed.scrollTop = speakerFeed.scrollHeight;
 
   // 2) 1 sn sonra karşı tarafın ekranı: orijinal alfabe + Latin okunuş
   clearHint(listenerFeed);
@@ -271,15 +287,93 @@ function buildPendingBubble() {
   return b;
 }
 
+function buildThinkingBubble(text, lang) {
+  const b = el('div', 'bubble said thinking');
+  b.append(textLine('b-main', text, lang));
+  const line = el('div', 'b-thinking');
+  line.append(el('span', 'dot'), el('span', 'dot'), el('span', 'dot'));
+  const label = ai.status === 'loading' ? (lang === 'ar' ? 'جارٍ تجهيز الذكاء الاصطناعي…' : 'Yapay zeka hazırlanıyor…') : (lang === 'ar' ? 'جارٍ الترجمة…' : 'Çevriliyor…');
+  line.append(el('span', 'b-note', label));
+  b.append(line);
+  return b;
+}
+
 function buildMissBubble(text, lang) {
   const b = el('div', 'bubble said miss');
   b.append(textLine('b-main', text, lang));
-  const note = lang === 'ar'
-    ? 'هذه الجملة غير موجودة في القاموس التجريبي. ستأتي الترجمة بالذكاء الاصطناعي في التحديث القادم.'
-    : 'Bu cümle demo sözlükte yok. Her cümleyi çeviren offline yapay zeka paketi bir sonraki güncellemede geliyor. Şimdilik 💬 ile örnek cümleleri deneyebilirsin.';
+  const needsAi = !aiInstalled() && ai.status !== 'ready';
+  let note;
+  if (needsAi) {
+    note = lang === 'ar'
+      ? 'هذه الجملة تحتاج إلى حزمة الذكاء الاصطناعي. نزّلها مرة واحدة لتترجم أي جملة بدون إنترنت.'
+      : 'Bu cümle için Yapay Zeka Paketi gerekiyor. Bir kez indir, sonra her cümleyi internetsiz çevirsin.';
+  } else {
+    note = lang === 'ar' ? 'تعذّرت الترجمة. حاول مرة أخرى.' : 'Çeviri yapılamadı. Tekrar dene.';
+  }
   b.append(textLine('b-note', note, lang));
+  if (needsAi) {
+    const btn = el('button', 'primary-btn small', lang === 'ar' ? '⬇ تنزيل الحزمة' : '⬇ Paketi indir');
+    btn.type = 'button';
+    btn.addEventListener('click', openAiSheet);
+    b.append(btn);
+  }
   return b;
 }
+
+// ---------- Yapay Zeka Paketi ----------
+const aiSheet = $('#ai-sheet');
+const mb = (bytes) => Math.round(bytes / 1e6);
+function renderAi() {
+  const btn = $('#btn-ai');
+  btn.dataset.state = ai.status === 'none' && aiInstalled() ? 'loading' : ai.status;
+  btn.title = { none: 'Yapay Zeka Paketi indirilmedi', downloading: 'Yapay Zeka Paketi iniyor', loading: 'Yapay zeka hazırlanıyor', ready: 'Yapay zeka hazır (internetsiz)', error: 'Yapay Zeka Paketi: hata' }[ai.status] || '';
+  const st = $('.ai-status', aiSheet);
+  const bar = $('.ai-bar', aiSheet);
+  const fill = $('.ai-bar-fill', aiSheet);
+  const dl = $('.ai-download', aiSheet);
+  const rm = $('.ai-remove', aiSheet);
+  const { loaded, total } = ai.progress;
+  const pct = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+  bar.hidden = !(ai.status === 'downloading' || ai.status === 'loading');
+  fill.style.width = (ai.status === 'loading' && !total ? 100 : pct) + '%';
+  bar.classList.toggle('indeterminate', ai.status === 'loading' && !total);
+  dl.hidden = ai.status === 'ready' || ai.status === 'downloading' || ai.status === 'loading';
+  rm.hidden = ai.status !== 'ready';
+  dl.textContent = ai.status === 'error' ? 'Kaldığı yerden devam et' : `İndir (≈${APPROX_SIZE_MB} MB)`;
+  st.className = 'ai-status ' + ai.status;
+  st.textContent = {
+    none: 'Henüz indirilmedi. Şu an sadece hazır cümleler ve senin düzeltmelerin çevriliyor.',
+    downloading: total ? `İndiriliyor: ${mb(loaded)} / ${mb(total)} MB (%${pct}). Ekranı açık tut.` : 'İndirme başlıyor…',
+    loading: 'Yapay zeka telefona yükleniyor…',
+    ready: `✓ Hazır. Her cümle internetsiz çevriliyor.${ai.threads > 1 ? ` (${ai.threads} çekirdek)` : ''}`,
+    error: 'Olmadı: ' + ai.error,
+  }[ai.status];
+}
+async function openAiSheet() {
+  renderAi();
+  const info = await storageInfo();
+  const free = info.quota ? Math.max(0, info.quota - info.usage) : 0;
+  $('.ai-storage', aiSheet).textContent = free
+    ? `Bu cihazda uygulamaya ayrılan boş alan: ≈${(free / 1e9).toFixed(1)} GB${info.persisted ? ' · kalıcı saklama açık' : ''}`
+    : '';
+  const part = ai.status === 'none' || ai.status === 'error' ? await partialMB() : 0;
+  if (part > 0) $('.ai-download', aiSheet).textContent = `Kaldığı yerden devam et (${part} MB inmişti)`;
+  if (!aiSheet.open) aiSheet.showModal();
+}
+ai.on(renderAi);
+ai.on((s) => {
+  if (s.status === 'ready' && s._announced !== true) { s._announced = true; toast('Yapay zeka hazır. Artık her cümle internetsiz çevriliyor.'); }
+});
+$('#btn-ai').addEventListener('click', openAiSheet);
+$('.sheet-close', aiSheet).addEventListener('click', () => aiSheet.close());
+$('.ai-download', aiSheet).addEventListener('click', () => {
+  if (!navigator.onLine) { toast('İndirmek için bir kez internete bağlanman gerekiyor.'); return; }
+  installAi();
+});
+$('.ai-remove', aiSheet).addEventListener('click', async () => {
+  await uninstallAi();
+  toast('Yapay Zeka Paketi bu cihazdan silindi.');
+});
 
 // ---------- Mikrofon ----------
 function toggleMic(side) {
@@ -369,6 +463,10 @@ async function checkNet() {
 }
 function updateNet() { showNet(navigator.onLine); checkNet(); }
 window.addEventListener('online', updateNet);
+// İnternet geri gelince yarım kalan yapay zeka indirmesine kendiliğinden devam et
+window.addEventListener('online', async () => {
+  if (ai.status === 'error' && (await partialMB()) > 0) { toast('İnternet geldi, indirme kaldığı yerden sürüyor.'); installAi(); }
+});
 window.addEventListener('offline', updateNet);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNet(); });
 setInterval(() => { if (!document.hidden) checkNet(); }, 20000);
@@ -424,3 +522,5 @@ buildPane('a');
 buildPane('b');
 applyFaceToFace();
 updateNet();
+renderAi();
+warmUpAi();

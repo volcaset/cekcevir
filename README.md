@@ -13,7 +13,7 @@ Tarayıcıdan açılır, "Ana ekrana ekle" ile telefona uygulama gibi kurulur.
 
 ## Yol haritası
 1. **v0.1 – Temel uygulama (bu sürüm):** PWA, offline açılış, karşılıklı ekran, okunuş motoru, demo ifade sözlüğü, ülkeye göre bayrak ve lehçe (Mısır vb.), gerçek internet göstergesi, "Çeviriyi düzenle".
-2. **Offline yapay zeka çevirisi:** NLLB-200 modeli tarayıcıya indirilir, her cümle internetsiz çevrilir.
+2. **v0.2 – Offline yapay zeka çevirisi:** NLLB-200 modeli (≈920 MB) parça parça, kaldığı yerden devam ederek indirilir; her cümle internetsiz çevrilir. Tatoeba'dan ~26 bin insan çevirisi cümle ve harekesiz Arapça için okunuş sözlüğü.
 3. **Offline mikrofon:** Whisper ile internetsiz sesi yazıya dökme.
 4. **Supabase ve geliştirmeler:** geçmiş, yeni diller, App Store / Google Play (Capacitor).
 
@@ -40,3 +40,8 @@ npm test
 ```
 
 Yayına alırken `www/sw.js` içindeki `VERSION` değerini artırın ki telefonlar yeni sürümü alsın.
+
+## Kaynaklar ve lisanslar
+- Çeviri modeli: [Meta NLLB-200 distilled 600M](https://huggingface.co/Xenova/nllb-200-distilled-600M) — **CC BY-NC 4.0 (ticari olmayan kullanım)**. Uygulama ücretli/reklamlı olursa lisansı uygun bir modele geçilmeli.
+- Cümle seti: [Tatoeba](https://tatoeba.org) — CC BY 2.0 FR. `scripts/build-tatoeba.mjs` ve GitHub Actions ile üretilir.
+- Çalışma motoru: Transformers.js 4.3.2 (Apache-2.0), onnxruntime-web (MIT).

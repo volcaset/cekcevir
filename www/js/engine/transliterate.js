@@ -8,6 +8,8 @@
 // Not: Arapça metin harekeli (sesli işaretli) olduğunda sonuç en doğrudur.
 // Adım 2'de model çıktısına hareke ekleyen bir katman gelecek.
 
+import { AR_LEXICON } from '../data/ar-lexicon.js';
+
 // ---------- Arapça -> Türkçe okunuş ----------
 
 const FATHA = 'َ', DAMMA = 'ُ', KASRA = 'ِ', SUKUN = 'ْ', SHADDA = 'ّ';
@@ -67,6 +69,7 @@ function transliterateArabicWord(word, isLastInPhrase) {
 
   let lastLetter = '';
   let lastVowel = ''; // son yazılan kısa ünlü
+  const bareWord = ![...word].some((c) => HARAKAT.has(c));
   const end = chars.length;
 
   while (i < end) {
@@ -121,8 +124,17 @@ function transliterateArabicWord(word, isLastInPhrase) {
       if (wordStart && ch === 'ا') v = 'i';
       else if (wordStart && ch === 'أ') v = 'e';
       else if (wordStart && ch === 'إ') v = 'i';
-      else if (ch === 'ي' && cons === 'y' && !/[aeiouâîû]$/.test(out.slice(0, -1)) ) { out = out.slice(0, -1) + 'i'; lastVowel = 'i'; }
+      else if (ch === 'ي' && cons === 'y' && !wordStart && !/[aeiouâîû]$/.test(out.slice(0, -1)) ) { out = out.slice(0, -1) + 'i'; lastVowel = 'i'; }
       else if (ch === 'و' && !wordStart && !/[aeiouâîû]$/.test(out.slice(0, -1))) { out = out.slice(0, -1) + 'u'; lastVowel = 'u'; }
+      else if (bareWord && cons && !/['ʼ]/.test(cons)) {
+        // Tamamen harekesiz kelime: hece tahmini. Uzun ünlü harfinden ya da
+        // kelime sonundan önce ünlü ekleme; ardışık ünsüzlerde bir ekle bir atla.
+        const nxt = chars.slice(next).find((c) => !HARAKAT.has(c));
+        const nextIsVowelLetter = !nxt || ['ا', 'ى', 'و', 'ي', 'ة', 'آ'].includes(nxt) || !isArabicLetter(nxt);
+        const before = out.slice(0, out.length - cons.length);
+        const prevGotVowel = /[aeiouâîû]$/.test(before);
+        if (!nextIsVowelLetter && !prevGotVowel) v = fathaVowel(ch);
+      }
     }
     if (has(DAGGER_ALEF) && v !== 'â') v += 'â';
     out += v;
@@ -150,6 +162,41 @@ function vowelFor(mark, letter) {
   return '';
 }
 
+// Harekesiz kelime -> harekeli hali (sözlükten)
+const stripMarks = (w) => w.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
+const loose = (w) => stripMarks(w).replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+const LEX = new Map();
+for (const w of AR_LEXICON) {
+  for (const k of [stripMarks(w), loose(w)]) if (!LEX.has(k)) LEX.set(k, w);
+}
+const SUN_LETTERS = 'تثدذرزسشصضطظلن';
+function lexLookup(bare) {
+  return LEX.get(bare) || LEX.get(loose(bare)) || null;
+}
+// Ön ekleri (و ف ب ل ك + ال) ayırıp sözlükte arar
+export function vocalizeWord(word) {
+  if (/[\u064B-\u0652]/.test(word)) return word; // zaten harekeli
+  const direct = lexLookup(word);
+  if (direct) return direct;
+  const prefixes = [['وال', 'وَالْ'], ['فال', 'فَالْ'], ['بال', 'بِالْ'], ['كال', 'كَالْ'], ['لل', 'لِالْ'], ['ال', 'الْ'], ['و', 'وَ'], ['ف', 'فَ'], ['ب', 'بِ'], ['ل', 'لِ']];
+  for (const [p, pv] of prefixes) {
+    if (word.length > p.length + 1 && word.startsWith(p)) {
+      const rest = lexLookup(word.slice(p.length));
+      if (rest) {
+        const isArticle = pv.endsWith('الْ') || p === 'لل';
+        if (isArticle) {
+          // Ön ek + "ال" iki parça gibi okunur: "vel-..." -> "ve'l-...", güneş harfleri dahil
+          const head = pv.slice(0, -3) || '';
+          const art = 'الْ' + rest;
+          return head ? head + ' ' + art : art;
+        }
+        return pv + rest;
+      }
+    }
+  }
+  return word;
+}
+
 export function arabicToTurkish(text) {
   if (!text) return '';
   let s = text.replace(/[٠-٩]/g, (d) => String(AR_DIGITS.indexOf(d)));
@@ -161,7 +208,8 @@ export function arabicToTurkish(text) {
     // Cümle sonunda mı? (sonrasında sadece boşluk/noktalama varsa)
     const rest = tokens.slice(idx + 1).join('');
     const last = !/[؀-ۿ]/.test(rest.split(/[?!.,;:]/)[0] || '');
-    return transliterateArabicWord(tok, last);
+    const parts = vocalizeWord(tok).split(' ');
+    return parts.map((pt, k) => transliterateArabicWord(pt, last && k === parts.length - 1)).join(' ');
   });
   // "sabâhu el-hayr" -> "sabâhu'l-hayr" (önceki kelime ünlüyle bitiyorsa)
   let res = out.join('').replace(/\s+/g, ' ').trim();

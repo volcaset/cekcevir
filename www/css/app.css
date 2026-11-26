@@ -176,3 +176,25 @@ body.face-to-face .pane-b { transform: rotate(180deg); }
 .edit-input { width: 100%; max-height: none; border-radius: 14px; font-size: 1.15rem; }
 .edit-hint { margin: 0; font-size: .8rem; color: var(--ink-soft); }
 .primary-btn { border: 0; border-radius: 999px; padding: 12px 18px; background: var(--accent); color: #fff; font-weight: 700; font-size: 1rem; }
+.ai-btn { font-size: .72rem; font-weight: 800; letter-spacing: .3px; position: relative; }
+.ai-btn::after { content: ''; position: absolute; right: 3px; top: 3px; width: 9px; height: 9px; border-radius: 50%; background: #9DB5BF; border: 2px solid var(--brand); }
+.ai-btn[data-state="ready"]::after { background: #5BE37D; }
+.ai-btn[data-state="downloading"]::after, .ai-btn[data-state="loading"]::after { background: var(--accent); animation: blink 1s infinite; }
+.ai-btn[data-state="error"]::after { background: #E5484D; }
+.ai-body { padding: 14px 16px 24px; line-height: 1.5; }
+.ai-body p { margin: 0 0 10px; }
+.ai-facts { margin: 0 0 12px; padding-left: 20px; color: var(--ink-soft); font-size: .92rem; }
+.ai-status { font-weight: 600; }
+.ai-status.ready { color: var(--teal); }
+.ai-status.error { color: #E5484D; }
+.ai-bar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 6px 0 10px; }
+.ai-bar-fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.ai-bar.indeterminate .ai-bar-fill { width: 40% !important; animation: slide 1.2s infinite ease-in-out; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.ai-storage { font-size: .8rem; color: var(--ink-soft); }
+.ai-actions { display: flex; align-items: center; gap: 14px; margin: 6px 0 12px; }
+.link-btn { border: 0; background: transparent; color: var(--ink-soft); text-decoration: underline; font-size: .9rem; }
+.ai-legal { font-size: .72rem; color: var(--ink-soft); }
+.primary-btn.small { padding: 8px 14px; font-size: .9rem; margin-top: 8px; }
+.b-thinking { display: flex; align-items: center; gap: 5px; margin-top: 8px; }
+.b-thinking .b-note { margin: 0 0 0 6px !important; }
