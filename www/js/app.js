@@ -4,7 +4,8 @@ import { REGIONS, detectRegion, regionInfo } from './data/regions.js';
 import { translate, examplePhrases, registerEngine } from './engine/translator.js';
 import { correctionsEngine, saveCorrection } from './engine/corrections.js';
 import { tatoebaEngine } from './engine/tatoeba.js';
-import { ai, createAiEngine, install as installAi, uninstall as uninstallAi, warmUp as warmUpAi, isInstalled as aiInstalled, storageInfo, APPROX_SIZE_MB, partialMB } from './engine/ai.js';
+import { ai, asr, createAiEngine, transcribe, storageInfo } from './engine/ai.js';
+import { canRecord, startRecording } from './recorder.js';
 
 registerEngine(correctionsEngine, { priority: true });
 registerEngine(tatoebaEngine);
@@ -13,7 +14,7 @@ registerEngine(createAiEngine((lang) => regionInfo(lang, regionOf(lang))?.nllb))
 import { readingFor } from './engine/transliterate.js';
 import { canListen, listen, stopListening, canSpeak, speak } from './speech.js';
 
-const APP_VERSION = '0.2.2';
+const APP_VERSION = '0.3.0';
 const DELIVERY_DELAY_MS = 1000; // karşı tarafa aktarım gecikmesi
 
 // ---------- Ayarlar (cihazda saklanır) ----------
@@ -301,7 +302,7 @@ function buildThinkingBubble(text, lang) {
 function buildMissBubble(text, lang) {
   const b = el('div', 'bubble said miss');
   b.append(textLine('b-main', text, lang));
-  const needsAi = !aiInstalled() && ai.status !== 'ready';
+  const needsAi = !ai.isInstalled() && ai.status !== 'ready';
   let note;
   if (needsAi) {
     note = lang === 'ar'
@@ -320,34 +321,47 @@ function buildMissBubble(text, lang) {
   return b;
 }
 
-// ---------- Yapay Zeka Paketi ----------
+// ---------- İnternetsiz paketler (çeviri + ses) ----------
 const aiSheet = $('#ai-sheet');
 const mb = (bytes) => Math.round(bytes / 1e6);
-function renderAi() {
-  const btn = $('#btn-ai');
-  btn.dataset.state = ai.status === 'none' && aiInstalled() ? 'loading' : ai.status;
-  btn.title = { none: 'Yapay Zeka Paketi indirilmedi', downloading: 'Yapay Zeka Paketi iniyor', loading: 'Yapay zeka hazırlanıyor', ready: 'Yapay zeka hazır (internetsiz)', error: 'Yapay Zeka Paketi: hata' }[ai.status] || '';
-  const st = $('.ai-status', aiSheet);
-  const bar = $('.ai-bar', aiSheet);
-  const fill = $('.ai-bar-fill', aiSheet);
-  const dl = $('.ai-download', aiSheet);
-  const rm = $('.ai-remove', aiSheet);
-  const { loaded, total } = ai.progress;
+const PACKS = { ai, asr };
+const READY_TEXT = {
+  ai: (p) => `✓ Hazır. Her cümle internetsiz çevriliyor.${p.threads > 1 ? ` (${p.threads} çekirdek)` : ''}`,
+  asr: () => '✓ Hazır. Mikrofon internetsiz çalışıyor.',
+};
+function renderPack(pack) {
+  const card = $(`.pack-card[data-pack="${pack.id}"]`, aiSheet);
+  const st = $('.ai-status', card);
+  const bar = $('.ai-bar', card);
+  const fill = $('.ai-bar-fill', card);
+  const dl = $('.ai-download', card);
+  const rm = $('.ai-remove', card);
+  const { loaded, total } = pack.progress;
   const pct = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
-  bar.hidden = !(ai.status === 'downloading' || ai.status === 'loading');
-  fill.style.width = (ai.status === 'loading' && !total ? 100 : pct) + '%';
-  bar.classList.toggle('indeterminate', ai.status === 'loading' && !total);
-  dl.hidden = ai.status === 'ready' || ai.status === 'downloading' || ai.status === 'loading';
-  rm.hidden = ai.status !== 'ready';
-  dl.textContent = ai.status === 'error' ? 'Kaldığı yerden devam et' : `İndir (≈${APPROX_SIZE_MB} MB)`;
-  st.className = 'ai-status ' + ai.status;
+  const busy = pack.status === 'downloading' || pack.status === 'loading';
+  bar.hidden = !busy;
+  fill.style.width = (pack.status === 'loading' && !total ? 100 : pct) + '%';
+  bar.classList.toggle('indeterminate', pack.status === 'loading' && !total);
+  dl.hidden = pack.status === 'ready' || busy;
+  rm.hidden = pack.status !== 'ready';
+  if (!dl.dataset.custom) dl.textContent = pack.status === 'error' ? 'Kaldığı yerden devam et' : `İndir (≈${pack.sizeMB} MB)`;
+  st.className = 'ai-status ' + pack.status;
   st.textContent = {
-    none: 'Henüz indirilmedi. Şu an sadece hazır cümleler ve senin düzeltmelerin çevriliyor.',
+    none: 'Henüz indirilmedi.',
     downloading: total ? `İndiriliyor: ${mb(loaded)} / ${mb(total)} MB (%${pct}). Ekranı açık tut.` : 'İndirme başlıyor…',
-    loading: 'Yapay zeka telefona yükleniyor…',
-    ready: `✓ Hazır. Her cümle internetsiz çevriliyor.${ai.threads > 1 ? ` (${ai.threads} çekirdek)` : ''}`,
-    error: 'Olmadı: ' + ai.error,
-  }[ai.status];
+    loading: 'Hazırlanıyor…',
+    ready: READY_TEXT[pack.id](pack),
+    error: 'Olmadı: ' + pack.error,
+  }[pack.status];
+}
+function renderAi() {
+  renderPack(ai); renderPack(asr);
+  const btn = $('#btn-ai');
+  const states = [ai.status, asr.status];
+  btn.dataset.state = states.includes('error') ? 'error'
+    : states.some((x) => x === 'downloading' || x === 'loading') ? 'loading'
+    : ai.status === 'ready' ? 'ready' : (ai.isInstalled() ? 'loading' : 'none');
+  btn.title = ai.status === 'ready' ? 'İnternetsiz paketler: hazır' : 'İnternetsiz paketleri indir';
 }
 async function openAiSheet() {
   renderAi();
@@ -356,45 +370,121 @@ async function openAiSheet() {
   $('.ai-storage', aiSheet).textContent = free
     ? `Bu cihazda uygulamaya ayrılan boş alan: ≈${(free / 1e9).toFixed(1)} GB${info.persisted ? ' · kalıcı saklama açık' : ''}`
     : '';
-  const part = ai.status === 'none' || ai.status === 'error' ? await partialMB() : 0;
-  if (part > 0) $('.ai-download', aiSheet).textContent = `Kaldığı yerden devam et (${part} MB inmişti)`;
+  for (const pack of Object.values(PACKS)) {
+    const dl = $(`.pack-card[data-pack="${pack.id}"] .ai-download`, aiSheet);
+    delete dl.dataset.custom;
+    const part = pack.status === 'none' || pack.status === 'error' ? await pack.partialMB() : 0;
+    if (part > 0) { dl.textContent = `Kaldığı yerden devam et (${part} MB inmişti)`; dl.dataset.custom = '1'; }
+  }
+  renderAi();
   if (!aiSheet.open) aiSheet.showModal();
 }
-ai.on(renderAi);
-ai.on((s) => {
-  if (s.status === 'ready' && s._announced !== true) { s._announced = true; toast('Yapay zeka hazır. Artık her cümle internetsiz çevriliyor.'); }
-});
+for (const pack of Object.values(PACKS)) {
+  pack.on(renderAi);
+  let announced = false;
+  pack.on((p) => {
+    if (p.status === 'ready' && !announced && aiSheet.open) {
+      announced = true;
+      toast(p.id === 'ai' ? 'Çeviri yapay zekası hazır. Artık her cümle internetsiz çevriliyor.' : 'Ses paketi hazır. Mikrofon artık internetsiz çalışıyor.');
+    }
+  });
+  const card = $(`.pack-card[data-pack="${pack.id}"]`, aiSheet);
+  $('.ai-download', card).addEventListener('click', (e) => {
+    if (!navigator.onLine) { toast('İndirmek için bir kez internete bağlanman gerekiyor.'); return; }
+    delete e.currentTarget.dataset.custom;
+    pack.install();
+  });
+  $('.ai-remove', card).addEventListener('click', async () => {
+    await pack.uninstall();
+    toast('Paket bu cihazdan silindi.');
+  });
+}
 $('#btn-ai').addEventListener('click', openAiSheet);
 $('.sheet-close', aiSheet).addEventListener('click', () => aiSheet.close());
-$('.ai-download', aiSheet).addEventListener('click', () => {
-  if (!navigator.onLine) { toast('İndirmek için bir kez internete bağlanman gerekiyor.'); return; }
-  installAi();
-});
-$('.ai-remove', aiSheet).addEventListener('click', async () => {
-  await uninstallAi();
-  toast('Yapay Zeka Paketi bu cihazdan silindi.');
-});
 
 // ---------- Mikrofon ----------
-function toggleMic(side) {
-  const pane = panes[side];
-  const mic = $('.mic-btn', pane);
-  const input = $('.composer-input', pane);
-  if (state.listeningSide === side) { stopListening(); return; }
-  if (!canListen()) { toast('Bu tarayıcıda mikrofonla yazma yok. Offline mikrofon bir sonraki güncellemelerde geliyor; şimdilik yazarak kullanabilirsin.'); return; }
-  if (!navigator.onLine) toast('İnternet yokken tarayıcının mikrofonu çalışmayabilir. Tam offline mikrofon yakında geliyor.');
-  state.listeningSide = side;
+// Ses paketi varsa: tamamen internetsiz (Whisper). Yoksa: tarayıcının kendi
+// ses tanıması (çoğu telefonda internet ister).
+let recording = null;
+function setMicState(side, on) {
   document.querySelectorAll('.mic-btn').forEach((m) => m.classList.remove('on'));
-  mic.classList.add('on');
+  if (on) $('.mic-btn', panes[side]).classList.add('on');
+  state.listeningSide = on ? side : null;
+}
+
+async function toggleMic(side) {
+  if (state.listeningSide === side) {
+    if (recording) recording.stop(); else stopListening();
+    return;
+  }
+  if (state.listeningSide) { if (recording) recording.cancel(); else stopListening(); }
+
+  const offlineReady = asr.status === 'ready' || asr.isInstalled();
+  if (offlineReady && canRecord()) return recordOffline(side);
+  if (canListen() && navigator.onLine) return listenOnline(side);
+  if (canRecord()) {
+    toast('İnternetsiz mikrofon için Ses Paketi gerekiyor.');
+    openAiSheet();
+    return;
+  }
+  toast('Bu tarayıcı mikrofonu desteklemiyor. Yazarak kullanabilirsin.');
+}
+
+async function recordOffline(side) {
+  const pane = panes[side];
+  const input = $('.composer-input', pane);
+  const mic = $('.mic-btn', pane);
+  const lang = state.langs[side];
+  const isAr = lang === 'ar';
+  try {
+    setMicState(side, true);
+    input.placeholder = isAr ? 'أستمع… تكلّم' : 'Dinliyorum… konuş';
+    recording = await startRecording({
+      onLevel: (v) => mic.style.setProperty('--level', v.toFixed(2)),
+    });
+  } catch (err) {
+    setMicState(side, false);
+    input.placeholder = placeholderText(side);
+    toast(err?.name === 'NotAllowedError' ? 'Mikrofon izni verilmedi. Tarayıcı ayarlarından izin ver.' : 'Mikrofon açılamadı.');
+    return;
+  }
+  const { audio, heardSpeech } = await recording.done;
+  recording = null;
+  setMicState(side, false);
+  mic.style.removeProperty('--level');
+  if (!heardSpeech || audio.length < 16000 * 0.4) {
+    input.placeholder = placeholderText(side);
+    toast(isAr ? 'لم أسمع شيئًا، حاول مرة أخرى.' : 'Ses duyulmadı, tekrar dene.');
+    return;
+  }
+  input.placeholder = isAr ? 'جارٍ تحويل الصوت إلى نص…' : 'Yazıya dökülüyor…';
+  mic.classList.add('busy');
+  try {
+    const text = (await transcribe(audio, lang)).trim();
+    input.placeholder = placeholderText(side);
+    if (text) handleUtterance(side, text);
+    else toast(isAr ? 'لم أفهم، حاول مرة أخرى.' : 'Anlaşılamadı, tekrar dene.');
+  } catch (err) {
+    input.placeholder = placeholderText(side);
+    toast('Ses yazıya dökülemedi: ' + (err?.message || 'hata'));
+  } finally {
+    mic.classList.remove('busy');
+  }
+}
+
+function listenOnline(side) {
+  const pane = panes[side];
+  const input = $('.composer-input', pane);
+  setMicState(side, true);
   listen(speechCode(state.langs[side]), {
     onPartial: (t) => { input.value = t; autoGrow(input); },
     onFinal: (t) => { input.value = ''; autoGrow(input); if (t.trim()) handleUtterance(side, t.trim()); },
     onError: (err) => {
       if (err === 'not-allowed' || err === 'service-not-allowed') toast('Mikrofon izni verilmedi.');
-      else if (err === 'network') toast('Tarayıcının mikrofonu internet istiyor. Yazarak devam edebilirsin.');
+      else if (err === 'network') toast('Tarayıcının mikrofonu internet istiyor. İnternetsiz mikrofon için Ses Paketi\'ni indir.');
       else if (err !== 'no-speech' && err !== 'aborted') toast('Ses anlaşılamadı, tekrar dene.');
     },
-    onEnd: () => { mic.classList.remove('on'); if (state.listeningSide === side) state.listeningSide = null; },
+    onEnd: () => { if (state.listeningSide === side) setMicState(side, false); },
   });
 }
 
@@ -465,7 +555,9 @@ function updateNet() { showNet(navigator.onLine); checkNet(); }
 window.addEventListener('online', updateNet);
 // İnternet geri gelince yarım kalan yapay zeka indirmesine kendiliğinden devam et
 window.addEventListener('online', async () => {
-  if (ai.status === 'error' && (await partialMB()) > 0) { toast('İnternet geldi, indirme kaldığı yerden sürüyor.'); installAi(); }
+  for (const pack of [ai, asr]) {
+    if (pack.status === 'error' && (await pack.partialMB()) > 0) { toast('İnternet geldi, indirme kaldığı yerden sürüyor.'); pack.install(); }
+  }
 });
 window.addEventListener('offline', updateNet);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNet(); });
@@ -523,4 +615,5 @@ buildPane('b');
 applyFaceToFace();
 updateNet();
 renderAi();
-warmUpAi();
+ai.warmUp();
+asr.warmUp();

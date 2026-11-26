@@ -198,3 +198,9 @@ body.face-to-face .pane-b { transform: rotate(180deg); }
 .primary-btn.small { padding: 8px 14px; font-size: .9rem; margin-top: 8px; }
 .b-thinking { display: flex; align-items: center; gap: 5px; margin-top: 8px; }
 .b-thinking .b-note { margin: 0 0 0 6px !important; }
+.pack-card { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 4px; margin: 0 0 12px; }
+.pack-card h3 { margin: 0 0 4px; font-size: 1rem; display: flex; justify-content: space-between; gap: 8px; }
+.pack-size { font-weight: 500; color: var(--ink-soft); font-size: .85rem; }
+.pack-desc { color: var(--ink-soft); font-size: .88rem; }
+.mic-btn.on { box-shadow: 0 0 0 calc(var(--level, 0) * 14px) rgba(242,118,46,.35); animation: none; transition: box-shadow .08s; }
+.mic-btn.busy { opacity: .6; pointer-events: none; animation: blink 1s infinite; }

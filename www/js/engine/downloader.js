@@ -29,7 +29,7 @@ function tx(db, mode, fn) {
 }
 const reqP = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
-async function existingChunks(db, file) {
+async function existingChunks(db, file) { // file: 'model/id/dosya'
   const keys = await tx(db, 'readonly', (s) => reqP(s.getAllKeys(IDBKeyRange.bound(file + '#', file + '#￿'))));
   return new Set(keys);
 }
@@ -76,9 +76,10 @@ export async function downloadModel({ modelId, files, cacheName, onProgress, sig
   // Daha önce tamamlananları ve diskteki parçaları say
   let loaded = 0;
   const done = new Set();
+  const keyOf = (f) => `${modelId}/${f}`;
   for (const f of files) {
     if (await cache.match(urlOf(f))) { done.add(f); loaded += sizes[f] || 0; continue; }
-    const have = await existingChunks(db, f);
+    const have = await existingChunks(db, keyOf(f));
     for (const k of have) {
       const i = Number(k.split('#')[1]);
       loaded += Math.min(CHUNK, (sizes[f] || 0) - i * CHUNK);
@@ -102,9 +103,9 @@ export async function downloadModel({ modelId, files, cacheName, onProgress, sig
     }
 
     const n = Math.ceil(size / CHUNK);
-    const have = await existingChunks(db, f);
+    const have = await existingChunks(db, keyOf(f));
     for (let i = 0; i < n; i++) {
-      const key = `${f}#${String(i).padStart(4, '0')}`;
+      const key = `${keyOf(f)}#${String(i).padStart(4, '0')}`;
       if (have.has(key)) continue;
       if (signal?.aborted) throw new Error('aborted');
       const start = i * CHUNK;
@@ -119,26 +120,30 @@ export async function downloadModel({ modelId, files, cacheName, onProgress, sig
     }
 
     // Parçaları birleştir ve önbelleğe koy
-    const keys = [...(await existingChunks(db, f))].sort();
+    const keys = [...(await existingChunks(db, keyOf(f)))].sort();
     const parts = [];
     for (const k of keys) parts.push(await tx(db, 'readonly', (s) => reqP(s.get(k))));
     const whole = new Blob(parts, { type: 'application/octet-stream' });
     if (whole.size !== size) throw new Error('Dosya boyutu tutmadı, tekrar indirilecek');
     await cache.put(url, new Response(whole, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(size) } }));
-    await tx(db, 'readwrite', (s) => s.delete(IDBKeyRange.bound(f + '#', f + '#￿')));
+    await tx(db, 'readwrite', (s) => s.delete(IDBKeyRange.bound(keyOf(f) + '#', keyOf(f) + '#\uffff')));
   }
   db.close();
   return { total };
 }
 
-export async function clearPartial() {
-  try { await new Promise((res) => { const r = indexedDB.deleteDatabase(DB_NAME); r.onsuccess = r.onerror = r.onblocked = () => res(); }); } catch (_) { /* yok say */ }
-}
-
-export async function partialBytes() {
+export async function clearPartial(modelId) {
   try {
     const db = await openDb();
-    const blobs = await tx(db, 'readonly', (s) => reqP(s.getAll()));
+    await tx(db, 'readwrite', (s) => s.delete(IDBKeyRange.bound(modelId + '/', modelId + '/\uffff')));
+    db.close();
+  } catch (_) { /* yok say */ }
+}
+
+export async function partialBytes(modelId) {
+  try {
+    const db = await openDb();
+    const blobs = await tx(db, 'readonly', (s) => reqP(s.getAll(IDBKeyRange.bound(modelId + '/', modelId + '/\uffff'))));
     db.close();
     return blobs.reduce((a, b) => a + (b?.size || 0), 0);
   } catch (_) { return 0; }

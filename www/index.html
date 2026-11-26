@@ -51,22 +51,31 @@
   </dialog>
 
   <dialog id="ai-sheet" class="sheet">
-    <div class="sheet-head"><h2>🧠 Yapay Zeka Paketi</h2><button class="sheet-close icon-btn" aria-label="Kapat">✕</button></div>
+    <div class="sheet-head"><h2>🧠 İnternetsiz paketler</h2><button class="sheet-close icon-btn" aria-label="Kapat">✕</button></div>
     <div class="ai-body">
-      <p>Bir kez indir, sonra <b>internet yokken de her cümleyi</b> çevirsin. Telefonda saklanır, her açılışta tekrar inmez.</p>
-      <ul class="ai-facts">
-        <li>Model: Meta NLLB-200 (600M), 200 dil, Mısır lehçesi dahil</li>
-        <li>Boyut: ≈920 MB</li>
-        <li>Wi-Fi'deyken indirmen önerilir</li>
-      </ul>
-      <p class="ai-status none"></p>
-      <div class="ai-bar" hidden><div class="ai-bar-fill"></div></div>
+      <p>Bir kez indir, sonra <b>internet yokken de</b> çalışsın. Telefonda saklanır, güncellemelerde tekrar inmez. Wi-Fi'de indirmen önerilir.</p>
+      <section class="pack-card" data-pack="ai">
+        <h3>💬 Çeviri yapay zekası <span class="pack-size">≈920 MB</span></h3>
+        <p class="pack-desc">Her cümleyi internetsiz çevirir. Meta NLLB-200, 200 dil.</p>
+        <p class="ai-status none"></p>
+        <div class="ai-bar" hidden><div class="ai-bar-fill"></div></div>
+        <div class="ai-actions">
+          <button type="button" class="primary-btn ai-download">İndir</button>
+          <button type="button" class="link-btn ai-remove" hidden>Paketi sil</button>
+        </div>
+      </section>
+      <section class="pack-card" data-pack="asr">
+        <h3>🎙️ Ses paketi <span class="pack-size">≈250 MB</span></h3>
+        <p class="pack-desc">Mikrofonu internetsiz çalıştırır: konuşmanı yazıya döker. OpenAI Whisper.</p>
+        <p class="ai-status none"></p>
+        <div class="ai-bar" hidden><div class="ai-bar-fill"></div></div>
+        <div class="ai-actions">
+          <button type="button" class="primary-btn ai-download">İndir</button>
+          <button type="button" class="link-btn ai-remove" hidden>Paketi sil</button>
+        </div>
+      </section>
       <p class="ai-storage"></p>
-      <div class="ai-actions">
-        <button type="button" class="primary-btn ai-download">İndir</button>
-        <button type="button" class="link-btn ai-remove" hidden>Paketi sil</button>
-      </div>
-      <p class="ai-legal">NLLB-200 © Meta, CC BY-NC 4.0 (ticari olmayan kullanım).</p>
+      <p class="ai-legal">NLLB-200 © Meta, CC BY-NC 4.0 (ticari olmayan kullanım). Whisper © OpenAI, MIT. Cümle seti: Tatoeba, CC BY 2.0 FR.</p>
     </div>
   </dialog>
 
