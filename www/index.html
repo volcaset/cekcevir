@@ -27,6 +27,7 @@
     <div class="top-actions">
       <span id="net" class="pill" role="status"><span class="net-dot"></span><span class="net-text">Çevrimiçi</span></span>
       <span id="offline-ready" class="pill ok" hidden title="Uygulama bu cihaza kaydedildi, internetsiz açılabilir">✓<span class="ready-text"> İnternetsiz hazır</span></span>
+      <button id="btn-ai" class="icon-btn ai-btn" data-state="none" title="Yapay Zeka Paketi" aria-label="Yapay Zeka Paketi">AI</button>
       <button id="btn-install" class="icon-btn" hidden title="Ana ekrana ekle" aria-label="Ana ekrana ekle">⤓</button>
       <button id="btn-face" class="icon-btn" title="Karşılıklı mod: üst paneli karşıdaki kişiye çevirir" aria-label="Karşılıklı mod" aria-pressed="true">⇅</button>
     </div>
@@ -47,6 +48,26 @@
   <dialog id="phrase-sheet" class="sheet">
     <div class="sheet-head"><h2 class="sheet-title">Örnek cümleler</h2><button class="sheet-close icon-btn" aria-label="Kapat">✕</button></div>
     <div class="sheet-list"></div>
+  </dialog>
+
+  <dialog id="ai-sheet" class="sheet">
+    <div class="sheet-head"><h2>🧠 Yapay Zeka Paketi</h2><button class="sheet-close icon-btn" aria-label="Kapat">✕</button></div>
+    <div class="ai-body">
+      <p>Bir kez indir, sonra <b>internet yokken de her cümleyi</b> çevirsin. Telefonda saklanır, her açılışta tekrar inmez.</p>
+      <ul class="ai-facts">
+        <li>Model: Meta NLLB-200 (600M), 200 dil, Mısır lehçesi dahil</li>
+        <li>Boyut: ≈920 MB</li>
+        <li>Wi-Fi'deyken indirmen önerilir</li>
+      </ul>
+      <p class="ai-status none"></p>
+      <div class="ai-bar" hidden><div class="ai-bar-fill"></div></div>
+      <p class="ai-storage"></p>
+      <div class="ai-actions">
+        <button type="button" class="primary-btn ai-download">İndir</button>
+        <button type="button" class="link-btn ai-remove" hidden>Paketi sil</button>
+      </div>
+      <p class="ai-legal">NLLB-200 © Meta, CC BY-NC 4.0 (ticari olmayan kullanım).</p>
+    </div>
   </dialog>
 
   <dialog id="edit-sheet" class="sheet">
