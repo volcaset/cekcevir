@@ -35,3 +35,10 @@ test('Mısır lehçesi seçiliyse Mısır Arapçası', async () => {
   assert.equal((await translate('ازيك', 'ar', 'tr')).text, 'Nasılsın?');
   assert.equal((await translate('Nasılsın?', 'tr', 'ar', { regions: { ar: 'SA' } })).text, 'كَيْفَ حَالُكَ؟');
 });
+
+test('Harekesiz Arapça (yapay zeka çıktısı) sözlükle doğru okunur', () => {
+  assert.equal(arabicToTurkish('شكرا'), 'Şukran');
+  assert.equal(arabicToTurkish('كيف حالك'), 'Keyfe hâluk');
+  assert.equal(arabicToTurkish('والشاي'), "Ve'ş-şây");
+  assert.equal(arabicToTurkish('أين المطار'), "Ayne'l-metâr");
+});

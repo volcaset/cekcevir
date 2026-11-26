@@ -1,0 +1,38 @@
+name: Tatoeba cümle setini güncelle
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/build-tatoeba.mjs'
+      - '.github/workflows/tatoeba.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Tatoeba dosyalarını indir
+        run: |
+          mkdir -p /tmp/tatoeba && cd /tmp/tatoeba
+          curl -fsSL -o tur.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/tur/tur_sentences.tsv.bz2
+          curl -fsSL -o ara.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/ara/ara_sentences.tsv.bz2
+          curl -fsSL -o links.tar.bz2 https://downloads.tatoeba.org/exports/links.tar.bz2
+          bunzip2 -f tur.tsv.bz2 ara.tsv.bz2
+          tar -xjf links.tar.bz2
+          ls -la
+      - name: Türkçe–Arapça çiftleri çıkar
+        run: node scripts/build-tatoeba.mjs /tmp/tatoeba/tur.tsv /tmp/tatoeba/ara.tsv /tmp/tatoeba/links.csv
+      - name: Sonucu depoya kaydet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add www/data/tatoeba-tr-ar.json
+          git diff --cached --quiet || git commit -m "Tatoeba Türkçe–Arapça cümle seti güncellendi"
+          git push
