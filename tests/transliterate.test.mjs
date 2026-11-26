@@ -50,3 +50,7 @@ test('Tatoeba cümle seti geçerli', () => {
   assert.equal(d.license, 'CC BY 2.0 FR');
   assert.ok(d.pairs.every((p) => p.length === 2 && p[0] && p[1]));
 });
+
+test('Harekeli "vel-" ön eki', () => {
+  assert.equal(arabicToTurkish('وَالنَّاسُ'), "Ve'n-nâs");
+});

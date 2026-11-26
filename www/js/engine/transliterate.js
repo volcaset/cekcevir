@@ -175,7 +175,12 @@ function lexLookup(bare) {
 }
 // Ön ekleri (و ف ب ل ك + ال) ayırıp sözlükte arar
 export function vocalizeWord(word) {
-  if (/[\u064B-\u0652]/.test(word)) return word; // zaten harekeli
+  if (/[\u064B-\u0652]/.test(word)) {
+    // Zaten harekeli: sadece "وَالْ / بِالْ / لِلْ" gibi ön ekleri ayır
+    const m = word.match(/^([وفبك][\u064B-\u0652]*)(ال.+)$/);
+    if (m && m[2].replace(/[\u064B-\u0652]/g, '').length > 3) return m[1] + ' ' + m[2];
+    return word;
+  }
   const direct = lexLookup(word);
   if (direct) return direct;
   const prefixes = [['وال', 'وَالْ'], ['فال', 'فَالْ'], ['بال', 'بِالْ'], ['كال', 'كَالْ'], ['لل', 'لِالْ'], ['ال', 'الْ'], ['و', 'وَ'], ['ف', 'فَ'], ['ب', 'بِ'], ['ل', 'لِ']];

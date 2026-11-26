@@ -13,7 +13,7 @@ registerEngine(createAiEngine((lang) => regionInfo(lang, regionOf(lang))?.nllb))
 import { readingFor } from './engine/transliterate.js';
 import { canListen, listen, stopListening, canSpeak, speak } from './speech.js';
 
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.2.1';
 const DELIVERY_DELAY_MS = 1000; // karşı tarafa aktarım gecikmesi
 
 // ---------- Ayarlar (cihazda saklanır) ----------
