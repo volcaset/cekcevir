@@ -21,18 +21,36 @@ const tur = await readSentences(turFile);
 const ara = await readSentences(araFile);
 console.log('tur', tur.size, 'ara', ara.size);
 
-const pairs = [];
-const seen = new Set();
+// 1) Doğrudan çeviriler (Türkçe <-> Arapça)
+// 2) Ara dil üzerinden (çoğunlukla İngilizce): Türkçe -> X <- Arapça
+const direct = [];
+const viaTur = new Map(); // pivot id -> [tur ids]
+const viaAra = new Map(); // pivot id -> [ara ids]
 const rl = readline.createInterface({ input: fs.createReadStream(linksFile), crlfDelay: Infinity });
 for await (const line of rl) {
   const [a, b] = line.split('\t');
-  if (tur.has(a) && ara.has(b)) {
-    const tr = tur.get(a);
-    const key = tr.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    pairs.push([tr, ara.get(b)]);
+  if (tur.has(a)) {
+    if (ara.has(b)) direct.push([a, b]);
+    else (viaTur.get(b) || viaTur.set(b, []).get(b)).push(a);
+  } else if (ara.has(a) && !tur.has(b)) {
+    (viaAra.get(b) || viaAra.set(b, []).get(b)).push(a);
   }
+}
+const indirect = [];
+for (const [pivot, ts] of viaTur) {
+  const as = viaAra.get(pivot);
+  if (as) for (const t of ts) indirect.push([t, as[0]]);
+}
+console.log('direct', direct.length, 'indirect', indirect.length);
+
+const pairs = [];
+const seen = new Set();
+for (const [a, b] of [...direct, ...indirect]) {
+  const tr = tur.get(a);
+  const key = tr.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
+  if (seen.has(key)) continue;
+  seen.add(key);
+  pairs.push([tr, ara.get(b)]);
 }
 pairs.sort((x, y) => x[0].length - y[0].length);
 const out = {
