@@ -1,0 +1,36 @@
+// Adım 1 demo ifadeleri: yapay zeka paketi (Adım 2) gelene kadar
+// arayüzü ve okunuş motorunu denemek için kısa bir seyahat sözlüğü.
+// ar_EG: Mısır lehçesi (Mısır seçiliyken bu kullanılır).
+// Arapça metinler harekeli yazıldı ki okunuş motoru doğru sesli harfleri bulsun.
+export const PHRASES = [
+  { tr: 'Merhaba', ar: 'مَرْحَبًا' },
+  { tr: 'Nasılsın?', ar: 'كَيْفَ حَالُكَ؟' , ar_EG: 'إِزَّيَّكْ؟' },
+  { tr: 'İyiyim, teşekkür ederim', ar: 'أَنَا بِخَيْرٍ، شُكْرًا' , ar_EG: 'أَنَا كْوَيِّسْ، شُكْرًا' },
+  { tr: 'Teşekkür ederim', ar: 'شُكْرًا' },
+  { tr: 'Çok teşekkürler', ar: 'شُكْرًا جَزِيلًا' },
+  { tr: 'Rica ederim', ar: 'عَفْوًا' },
+  { tr: 'Evet', ar: 'نَعَمْ' , ar_EG: 'أَيْوَه' },
+  { tr: 'Hayır', ar: 'لَا' },
+  { tr: 'Lütfen', ar: 'مِنْ فَضْلِكَ' },
+  { tr: 'Özür dilerim', ar: 'آسِفٌ' },
+  { tr: 'Günaydın', ar: 'صَبَاحُ الْخَيْرِ' , ar_EG: 'صَبَاحْ الْخِيرْ' },
+  { tr: 'İyi akşamlar', ar: 'مَسَاءُ الْخَيْرِ' },
+  { tr: 'Hoşça kal', ar: 'مَعَ السَّلَامَةِ' },
+  { tr: 'Adın ne?', ar: 'مَا اسْمُكَ؟' , ar_EG: 'اِسْمَكْ إِيهْ؟' },
+  { tr: 'Benim adım Cengiz', ar: 'اِسْمِي جِنْكِيز' },
+  { tr: 'Türküm', ar: 'أَنَا تُرْكِيٌّ' },
+  { tr: 'Arapça bilmiyorum', ar: 'لَا أَتَكَلَّمُ الْعَرَبِيَّةَ' },
+  { tr: 'Anlamadım', ar: 'لَمْ أَفْهَمْ' , ar_EG: 'مِشْ فَاهِمْ' },
+  { tr: 'Tuvalet nerede?', ar: 'أَيْنَ الْحَمَّامُ؟' , ar_EG: 'فِينْ الْحَمَّامْ؟' },
+  { tr: 'Otel nerede?', ar: 'أَيْنَ الْفُنْدُقُ؟' , ar_EG: 'فِينْ الْفُنْدُقْ؟' },
+  { tr: 'Bu ne kadar?', ar: 'بِكَمْ هَذَا؟' , ar_EG: 'بِكَامْ دَهْ؟' },
+  { tr: 'Çok pahalı', ar: 'غَالٍ جِدًّا' , ar_EG: 'غَالِي أَوِي' },
+  { tr: 'Su istiyorum', ar: 'أُرِيدُ مَاءً' , ar_EG: 'عَايِزْ مَيَّة' },
+  { tr: 'Yardım edin!', ar: 'سَاعِدُونِي!' },
+  { tr: 'Doktora ihtiyacım var', ar: 'أَحْتَاجُ إِلَى طَبِيبٍ' },
+  { tr: 'Hesap lütfen', ar: 'الْحِسَابُ مِنْ فَضْلِكَ' },
+  { tr: 'Polis çağırın', ar: 'اُطْلُبُوا الشُّرْطَةَ' },
+  { tr: 'Havalimanı', ar: 'الْمَطَارُ' },
+  { tr: 'Taksi', ar: 'تَاكْسِي' },
+  { tr: 'Kaç para?', ar: 'كَمْ السِّعْرُ؟' , ar_EG: 'بِكَامْ؟' },
+];
