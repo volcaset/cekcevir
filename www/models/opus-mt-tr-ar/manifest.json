@@ -1,0 +1,30 @@
+{
+ "source": "Helsinki-NLP/opus-mt-tr-ar",
+ "license": "CC-BY 4.0 / Apache-2.0",
+ "files": {
+  "config.json": {
+   "size": 1384,
+   "parts": 0
+  },
+  "generation_config.json": {
+   "size": 288,
+   "parts": 0
+  },
+  "tokenizer.json": {
+   "size": 6910917,
+   "parts": 0
+  },
+  "tokenizer_config.json": {
+   "size": 818,
+   "parts": 0
+  },
+  "onnx/encoder_model_quantized.onnx": {
+   "size": 52009798,
+   "parts": 4
+  },
+  "onnx/decoder_model_merged_quantized.onnx": {
+   "size": 188957064,
+   "parts": 12
+  }
+ }
+}
