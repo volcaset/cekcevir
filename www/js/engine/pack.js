@@ -45,6 +45,11 @@ export function createPack(cfg) {
     worker = new Worker(new URL('./pack.worker.js', import.meta.url), { type: 'module' });
     worker.onmessage = ({ data }) => {
       if (data.type === 'progress') return;
+      if (data.type === 'fatal') {
+        for (const job of pending.values()) job.reject(new Error(data.message));
+        pending.clear();
+        return;
+      }
       const job = pending.get(data.id);
       if (!job) return;
       pending.delete(data.id);
@@ -52,10 +57,15 @@ export function createPack(cfg) {
       else job.resolve(data);
     };
     worker.onerror = (e) => {
-      for (const job of pending.values()) job.reject(new Error(e.message || 'worker'));
+      e.preventDefault?.();
+      // Safari bu olayda çoğu zaman ayrıntı vermez; en olası sebebi yaz
+      const detail = e.message
+        ? `${e.message}${e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''}`
+        : 'Yapay zeka motoru bu tarayıcıda başlatılamadı. Cihazın belleği yetmemiş olabilir; diğer uygulamaları kapatıp tekrar dene.';
+      for (const job of pending.values()) job.reject(new Error(detail));
       pending.clear();
+      try { worker?.terminate(); } catch (_) { /* yok say */ }
       worker = null;
-      setStatus('error', { error: e.message || 'Yapay zeka başlatılamadı' });
     };
     return worker;
   }
