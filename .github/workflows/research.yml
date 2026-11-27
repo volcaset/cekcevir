@@ -1,0 +1,20 @@
+name: research
+on:
+  push:
+    branches: [research-models]
+jobs:
+  r:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          q() { echo "=== $1"; curl -fsSL "$1" | jq -c "$2" | head -c 6000; echo; }
+          for m in Xenova/nllb-200-distilled-600M onnx-community/whisper-base onnx-community/whisper-tiny Xenova/m2m100_418M onnx-community/whisper-small; do
+            q "https://huggingface.co/api/models/$m/tree/main/onnx" '[.[]|{p:.path,mb:((.size/1e6)|floor)}]'
+          done
+          for s in opus-mt-tr opus-mt-ar opus-mt-tc-big-ar opus-mt-tc-big-tr opus-mt-tc-base-tr opus-mt-mul nllb-200 m2m100 madlad translation-ar; do
+            q "https://huggingface.co/api/models?search=$s&limit=60" '[.[]|.id]'
+          done
+          for s in opus-mt nllb m2m; do
+            q "https://huggingface.co/api/models?author=Xenova&search=$s&limit=200" '[.[]|.id]'
+            q "https://huggingface.co/api/models?author=onnx-community&search=$s&limit=200" '[.[]|.id]'
+          done
