@@ -1,0 +1,56 @@
+name: Telefon çeviri modellerini hazırla
+
+# Helsinki-NLP OPUS-MT Türkçe↔Arapça modellerini ONNX'e çevirir, 8-bit küçültür,
+# Transformers.js ile dener ve 16 MB'lık parçalar halinde www/models/ altına koyar.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/convert-models.yml'
+      - 'scripts/models/**'
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dönüştürücüyü kur
+        run: |
+          git clone --depth 1 -b v3 https://github.com/huggingface/transformers.js /tmp/tjs
+          pip install -q torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install -q -r /tmp/tjs/scripts/requirements.txt sentencepiece sacrebleu
+      - name: ONNX'e çevir ve küçült
+        run: |
+          cd /tmp/tjs
+          for m in Helsinki-NLP/opus-mt-tr-ar Helsinki-NLP/opus-mt-ar-tr; do
+            python -m scripts.convert --quantize --model_id "$m"
+          done
+          ls -laR models
+      - name: Transformers.js ile dene
+        run: |
+          mkdir -p /tmp/node && cp scripts/models/test.mjs /tmp/node/
+          cd /tmp/node && npm init -y >/dev/null && npm i -s @huggingface/transformers@4.3.2
+          node test.mjs /tmp/tjs/models "$GITHUB_WORKSPACE/www/data/tatoeba-tr-ar.json"
+          python "$GITHUB_WORKSPACE/scripts/models/score.py" /tmp/node/hyp.json
+      - name: Parçala ve kaydet
+        run: |
+          rm -rf www/models
+          python scripts/models/package.py /tmp/tjs/models www/models
+          du -sh www/models/*
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add www/models
+          git diff --cached --quiet && exit 0
+          git commit -m "Telefon çeviri modelleri (OPUS-MT tr↔ar, 8-bit ONNX)"
+          git pull --rebase -q origin main
+          git push
