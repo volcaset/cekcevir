@@ -6,9 +6,8 @@ jobs:
   r:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          for m in onnx-community/opus-mt-tc-big-tr-en onnx-community/opus-mt-tc-big-en-tr Xenova/opus-mt-en-ar Xenova/opus-mt-ar-en onnx-community/opus-mt-en-ar onnx-community/opus-mt-ar-en Xenova/opus-mt-tc-big-tr-en Helsinki-NLP/opus-mt-tr-ar Helsinki-NLP/opus-mt-ar-tr; do
-            echo "=== $m"; curl -fsSL "https://huggingface.co/api/models/$m/tree/main?recursive=1" | jq -c '[.[]|select(.type=="file")|{p:.path,mb:((.size/1e5)|floor/10)}]'
-            curl -fsSL "https://huggingface.co/api/models/$m" | jq -c '{license:.cardData.license, dl:.downloads, tags:.tags[:8]}'
-          done
-          for m in Helsinki-NLP/opus-mt-tr-ar Helsinki-NLP/opus-mt-ar-tr Helsinki-NLP/opus-mt-tc-big-en-ar Helsinki-NLP/opus-mt-tc-big-ar-en Helsinki-NLP/opus-mt-tc-big-tr-en Helsinki-NLP/opus-mt-tc-big-en-tr; do echo "=== README $m"; curl -fsSL "https://huggingface.co/$m/raw/main/README.md" | grep -iE "bleu|chrf|tatoeba|flores|\| *(tur|ara|eng)" | head -25; done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu && pip install -q "transformers<5" sentencepiece sacremoses sacrebleu protobuf
+      - run: python scripts/research/eval_mt.py
