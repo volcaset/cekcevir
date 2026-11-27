@@ -53,6 +53,35 @@ async function fetchWithRetry(url, init, tries = 4) {
   throw lastErr;
 }
 
+// Parça (Range) isteği çalışıyor mu? Çalışan adresi döner, çalışmıyorsa null.
+// Bazı tarayıcılar (iPhone Safari) yönlendirmeden sonra Range başlığını
+// düşürür; o durumda yönlendirilen gerçek adresi doğrudan deneriz.
+async function probeRange(url, signal) {
+  const tryOne = async (u) => {
+    const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort();
+    signal?.addEventListener('abort', onAbort);
+    try {
+      const res = await fetch(u, { headers: { Range: 'bytes=0-0' }, signal: ctrl.signal });
+      const ok = res.status === 206;
+      const finalUrl = res.url;
+      ctrl.abort(); // 200 dönerse tüm dosyayı indirmesin
+      return { ok, finalUrl };
+    } catch (_) {
+      return { ok: false, finalUrl: '' };
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
+    }
+  };
+  const first = await tryOne(url);
+  if (first.ok) return url;
+  if (first.finalUrl && first.finalUrl !== url) {
+    const second = await tryOne(first.finalUrl);
+    if (second.ok) return first.finalUrl;
+  }
+  return null;
+}
+
 // Model deposundaki dosya boyutlarını öğren
 export async function listSizes(modelId, files) {
   const sizes = {};
@@ -104,19 +133,66 @@ export async function downloadModel({ modelId, files, cacheName, onProgress, sig
 
     const n = Math.ceil(size / CHUNK);
     const have = await existingChunks(db, keyOf(f));
-    for (let i = 0; i < n; i++) {
-      const key = `${keyOf(f)}#${String(i).padStart(4, '0')}`;
-      if (have.has(key)) continue;
-      if (signal?.aborted) throw new Error('aborted');
-      const start = i * CHUNK;
-      const end = Math.min(size, start + CHUNK) - 1;
-      const res = await fetchWithRetry(url, { headers: { Range: `bytes=${start}-${end}` }, signal });
-      if (res.status !== 206) throw new Error('Sunucu parça parça indirmeyi desteklemedi');
-      const blob = await res.blob();
-      if (blob.size !== end - start + 1) throw new Error('Parça eksik indi');
-      await tx(db, 'readwrite', (s) => s.put(blob, key));
-      loaded += blob.size;
+    const chunkKey = (i) => `${keyOf(f)}#${String(i).padStart(4, '0')}`;
+    let target = await probeRange(url, signal);
+
+    if (target) {
+      // Parça parça (Range) indirme: kopan bağlantıda sadece eksik parçalar iner
+      for (let i = 0; i < n; i++) {
+        const key = chunkKey(i);
+        if (have.has(key)) continue;
+        if (signal?.aborted) throw new Error('aborted');
+        const start = i * CHUNK;
+        const end = Math.min(size, start + CHUNK) - 1;
+        let res;
+        try {
+          res = await fetchWithRetry(target, { headers: { Range: `bytes=${start}-${end}` }, signal });
+        } catch (err) {
+          // İmzalı adresin süresi dolmuş olabilir: yeniden çöz ve bir kez dene
+          target = await probeRange(url, signal);
+          if (!target) throw err;
+          res = await fetchWithRetry(target, { headers: { Range: `bytes=${start}-${end}` }, signal });
+        }
+        if (res.status !== 206) throw new Error('Sunucu parça parça indirmeyi desteklemedi');
+        const blob = await res.blob();
+        if (blob.size !== end - start + 1) throw new Error('Parça eksik indi');
+        await tx(db, 'readwrite', (s) => s.put(blob, key));
+        loaded += blob.size;
+        onProgress?.({ loaded, total });
+      }
+    } else {
+      // Yedek yol (ör. bazı iPhone Safari sürümleri): dosyayı tek akışta indir,
+      // 16 MB'lık parçalar halinde cihaza yaz. Kopan indirme bu dosyayı baştan
+      // indirir ama diğer tamamlanmış dosyalar korunur.
+      for (const k of have) loaded -= Math.min(CHUNK, size - Number(k.split('#')[1]) * CHUNK);
+      await tx(db, 'readwrite', (s) => s.delete(IDBKeyRange.bound(keyOf(f) + '#', keyOf(f) + '#\uffff')));
       onProgress?.({ loaded, total });
+      const res = await fetchWithRetry(url, { signal });
+      const reader = res.body.getReader();
+      let pending = [];
+      let pendingLen = 0;
+      let idx = 0;
+      const flush = async (final) => {
+        while (pendingLen >= CHUNK || (final && pendingLen > 0)) {
+          const blob = new Blob(pending);
+          const piece = blob.slice(0, Math.min(CHUNK, blob.size));
+          const rest = blob.slice(piece.size);
+          await tx(db, 'readwrite', (s) => s.put(piece, chunkKey(idx)));
+          idx++;
+          pending = rest.size ? [rest] : [];
+          pendingLen = rest.size;
+        }
+      };
+      for (;;) {
+        const { done: end, value } = await reader.read();
+        if (end) break;
+        pending.push(value);
+        pendingLen += value.length;
+        loaded += value.length;
+        onProgress?.({ loaded, total });
+        if (pendingLen >= CHUNK) await flush(false);
+      }
+      await flush(true);
     }
 
     // Parçaları birleştir ve önbelleğe koy
