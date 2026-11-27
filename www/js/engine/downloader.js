@@ -83,8 +83,23 @@ async function probeRange(url, signal) {
 }
 
 // Model deposundaki dosya boyutlarını öğren
-export async function listSizes(modelId, files) {
+// base verilirse: model bizim sunucumuzda, 16 MB'lık parçalar halinde (manifest.json)
+const manifests = new Map();
+async function getManifest(base) {
+  if (!manifests.has(base)) {
+    const res = await fetchWithRetry(base + 'manifest.json', { cache: 'no-cache' });
+    manifests.set(base, await res.json());
+  }
+  return manifests.get(base);
+}
+
+export async function listSizes(modelId, files, base) {
   const sizes = {};
+  if (base) {
+    const m = await getManifest(base);
+    for (const f of files) sizes[f] = m.files[f]?.size;
+    return sizes;
+  }
   const dirs = [...new Set(files.map((f) => (f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '')))];
   for (const dir of dirs) {
     const res = await fetchWithRetry(`https://huggingface.co/api/models/${modelId}/tree/main${dir ? '/' + dir : ''}`);
@@ -95,8 +110,9 @@ export async function listSizes(modelId, files) {
 
 // files: ['onnx/encoder_model_quantized.onnx', ...]
 // onProgress({ loaded, total })
-export async function downloadModel({ modelId, files, cacheName, onProgress, signal }) {
-  const sizes = await listSizes(modelId, files);
+export async function downloadModel({ modelId, files, cacheName, onProgress, signal, base }) {
+  const sizes = await listSizes(modelId, files, base);
+  const manifest = base ? await getManifest(base) : null;
   const total = files.reduce((a, f) => a + (sizes[f] || 0), 0);
   const cache = await caches.open(cacheName);
   const db = await openDb();
@@ -122,8 +138,8 @@ export async function downloadModel({ modelId, files, cacheName, onProgress, sig
     const size = sizes[f];
     const url = urlOf(f);
 
-    if (!size || size <= CHUNK) {
-      const res = await fetchWithRetry(url, { signal });
+    if (!size || size <= CHUNK || (manifest && !manifest.files[f]?.parts)) {
+      const res = await fetchWithRetry(base ? base + f : url, { signal });
       const blob = await res.blob();
       await cache.put(url, new Response(blob, { headers: { 'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream', 'Content-Length': String(blob.size) } }));
       loaded += size || blob.size;
@@ -134,9 +150,22 @@ export async function downloadModel({ modelId, files, cacheName, onProgress, sig
     const n = Math.ceil(size / CHUNK);
     const have = await existingChunks(db, keyOf(f));
     const chunkKey = (i) => `${keyOf(f)}#${String(i).padStart(4, '0')}`;
-    let target = await probeRange(url, signal);
+    let target = base ? null : await probeRange(url, signal);
 
-    if (target) {
+    if (base) {
+      // Kendi sunucumuz: dosya zaten 16 MB'lık parçalara bölünmüş
+      for (let i = 0; i < n; i++) {
+        const key = chunkKey(i);
+        if (have.has(key)) continue;
+        if (signal?.aborted) throw new Error('aborted');
+        const res = await fetchWithRetry(`${base}${f}.${String(i).padStart(3, '0')}`, { signal });
+        const blob = await res.blob();
+        if (blob.size !== Math.min(CHUNK, size - i * CHUNK)) throw new Error('Parça eksik indi');
+        await tx(db, 'readwrite', (s) => s.put(blob, key));
+        loaded += blob.size;
+        onProgress?.({ loaded, total });
+      }
+    } else if (target) {
       // Parça parça (Range) indirme: kopan bağlantıda sadece eksik parçalar iner
       for (let i = 0; i < n; i++) {
         const key = chunkKey(i);

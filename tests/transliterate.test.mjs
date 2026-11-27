@@ -54,3 +54,7 @@ test('Tatoeba cümle seti geçerli', () => {
 test('Harekeli "vel-" ön eki', () => {
   assert.equal(arabicToTurkish('وَالنَّاسُ'), "Ve'n-nâs");
 });
+
+test('Sadece tenvinli kelime sözlükten okunur', () => {
+  assert.equal(arabicToTurkish('مرحباً'), 'Merhaben');
+});

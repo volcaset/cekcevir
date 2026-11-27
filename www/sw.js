@@ -1,6 +1,6 @@
 // ÇekÇevir service worker: uygulamanın internetsiz açılmasını sağlar.
 // Sürümü her yayında artır ki telefonlar yeni dosyaları alsın.
-const VERSION = 'cekcevir-v0.3.2';
+const VERSION = 'cekcevir-v0.4.0';
 // Dosya adları sürüm içerdiği için bu önbellek uygulama güncellemelerinde silinmez
 const RUNTIME = 'cekcevir-runtime-tfjs-4.3.2-ort-1.31.0-dev.20260914';
 const RUNTIME_HOSTS = ['https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/'];
@@ -15,6 +15,7 @@ const APP_SHELL = [
   './js/engine/transliterate.js',
   './js/engine/corrections.js',
   './js/engine/ai.js',
+  './js/engine/lite-models.js',
   './js/engine/pack.js',
   './js/engine/pack.worker.js',
   './js/recorder.js',
@@ -49,6 +50,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   const isRuntimeCdn = RUNTIME_HOSTS.some((h) => req.url.startsWith(h));
   if (url.origin !== self.location.origin && !isRuntimeCdn) return; // model dosyaları kendi önbelleğini kullanır
+  if (url.pathname.startsWith('/models/')) return; // model parçaları: indirici kendisi saklar
   if (url.searchParams.has('ping')) return; // internet kontrolü: her zaman gerçek ağa gitsin
 
   // Sayfa açılışı: önce ağ (güncel kalsın), internet yoksa önbellek

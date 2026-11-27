@@ -175,6 +175,12 @@ function lexLookup(bare) {
 }
 // Ön ekleri (و ف ب ل ك + ال) ayırıp sözlükte arar
 export function vocalizeWord(word) {
+  // Sadece tenvin taşıyan kelime (ör. "مرحباً") harekesiz sayılır: sözlükte ara
+  const bare = word.replace(/[\u064B-\u064D]/g, '');
+  if (bare !== word && !/[\u064E-\u0652]/.test(bare)) {
+    const hit = lexLookup(bare);
+    if (hit) return hit;
+  }
   if (/[\u064B-\u0652]/.test(word)) {
     // Zaten harekeli: sadece "وَالْ / بِالْ / لِلْ" gibi ön ekleri ayır
     const m = word.match(/^([وفبك][\u064B-\u0652]*)(ال.+)$/);

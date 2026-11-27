@@ -4,7 +4,7 @@ import { REGIONS, detectRegion, regionInfo } from './data/regions.js';
 import { translate, examplePhrases, registerEngine } from './engine/translator.js';
 import { correctionsEngine, saveCorrection } from './engine/corrections.js';
 import { tatoebaEngine } from './engine/tatoeba.js';
-import { ai, asr, createAiEngine, transcribe, storageInfo } from './engine/ai.js';
+import { ai, asr, createAiEngine, transcribe, storageInfo, PROFILE, IS_MOBILE, setProfile } from './engine/ai.js';
 import { canRecord, startRecording } from './recorder.js';
 
 registerEngine(correctionsEngine, { priority: true });
@@ -14,7 +14,7 @@ registerEngine(createAiEngine((lang) => regionInfo(lang, regionOf(lang))?.nllb))
 import { readingFor } from './engine/transliterate.js';
 import { canListen, listen, stopListening, canSpeak, speak } from './speech.js';
 
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.4.0';
 const DELIVERY_DELAY_MS = 1000; // karşı tarafa aktarım gecikmesi
 
 // ---------- Ayarlar (cihazda saklanır) ----------
@@ -343,8 +343,10 @@ function renderPack(pack) {
   fill.style.width = (pack.status === 'loading' && !total ? 100 : pct) + '%';
   bar.classList.toggle('indeterminate', pack.status === 'loading' && !total);
   dl.hidden = pack.status === 'ready' || busy;
-  rm.hidden = pack.status !== 'ready';
-  if (!dl.dataset.custom) dl.textContent = pack.status === 'error' ? 'Kaldığı yerden devam et' : `İndir (≈${pack.sizeMB} MB)`;
+  rm.hidden = pack.status !== 'ready' && !pack.crashed;
+  $('.pack-size', card).textContent = `≈${pack.sizeMB} MB`;
+  $('.pack-model', card).textContent = pack.title || '';
+  if (!dl.dataset.custom) dl.textContent = pack.crashed ? 'Tekrar dene' : pack.status === 'error' ? 'Kaldığı yerden devam et' : `İndir (≈${pack.sizeMB} MB)`;
   st.className = 'ai-status ' + pack.status;
   st.textContent = {
     none: 'Henüz indirilmedi.',
@@ -363,7 +365,23 @@ function renderAi() {
     : ai.status === 'ready' ? 'ready' : (ai.isInstalled() ? 'loading' : 'none');
   btn.title = ai.status === 'ready' ? 'İnternetsiz paketler: hazır' : 'İnternetsiz paketleri indir';
 }
+function renderProfile() {
+  const lite = PROFILE === 'lite';
+  $('.ai-profile-text', aiSheet).textContent = lite
+    ? '📱 Telefon paketleri kullanılıyor: küçük, hızlı açılır, telefonun belleğine sığar.'
+    : '💻 Tam paketler kullanılıyor: en iyi çeviri, ama çok bellek ister (bilgisayar için).';
+  $('.ai-profile-switch', aiSheet).textContent = lite ? 'Tam paketlere geç' : 'Telefon paketlerine geç';
+  $('.ai-legal', aiSheet).textContent = (lite ? (ai.legal || '') : 'NLLB-200 © Meta, CC BY-NC 4.0 (ticari olmayan kullanım).')
+    + ' Whisper © OpenAI, MIT. Cümle seti: Tatoeba, CC BY 2.0 FR.';
+}
+$('.ai-profile-switch', aiSheet).addEventListener('click', () => {
+  const next = PROFILE === 'lite' ? 'full' : 'lite';
+  if (next === 'full' && IS_MOBILE && !confirm('Tam paketler telefonda belleğe sığmayabilir ve sayfa kapanabilir. Yine de geçilsin mi?')) return;
+  setProfile(next);
+  location.reload();
+});
 async function openAiSheet() {
+  renderProfile();
   renderAi();
   const info = await storageInfo();
   const free = info.quota ? Math.max(0, info.quota - info.usage) : 0;

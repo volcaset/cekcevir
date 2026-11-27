@@ -22,6 +22,7 @@ async function getLib() {
   } catch (err) {
     throw new Error('Yapay zeka kütüphanesi yüklenemedi (' + (err?.message || err) + ')');
   }
+  self.postMessage({ type: 'stage', stage: 'kütüphane yüklendi' });
   const { env } = mod;
   env.allowLocalModels = false;
   env.useBrowserCache = true;
@@ -38,38 +39,58 @@ async function getLib() {
   return lib;
 }
 
-let model = null;
-let loading = null;
+// Bir pakette birden çok model olabilir (ör. telefon çevirisi: iki küçük model)
+const pipes = new Map();
 let task = null;
+let lowMemory = false;
 
-function load(cfg) {
-  if (model) return Promise.resolve(model);
-  if (!loading) {
+function loadModel(modelId, cfg) {
+  if (!pipes.has(modelId)) {
     task = cfg.task;
-    loading = getLib().then(({ pipeline }) => pipeline(cfg.task, cfg.modelId, {
-      dtype: cfg.dtype || 'q8',
-      device: 'wasm',
-      progress_callback: (p) => self.postMessage({ type: 'progress', data: {
-        status: p.status, file: p.file, loaded: p.loaded, total: p.total,
-      } }),
-    })).then((m) => { model = m; return m; })
-      .catch((err) => { loading = null; throw err; });
+    lowMemory = !!cfg.lowMemory;
+    const p = getLib().then(({ pipeline }) => {
+      self.postMessage({ type: 'stage', stage: 'model açılıyor: ' + modelId.split('/').pop() });
+      return pipeline(cfg.task, modelId, {
+        dtype: cfg.dtype || 'q8',
+        device: 'wasm',
+        // Telefonda bellek tepe noktasını düşür
+        ...(lowMemory ? { session_options: { enableCpuMemArena: false, enableMemPattern: false } } : {}),
+        progress_callback: (ev) => self.postMessage({ type: 'progress', data: {
+          status: ev.status, file: ev.file, loaded: ev.loaded, total: ev.total,
+        } }),
+      });
+    }).catch((err) => { pipes.delete(modelId); throw err; });
+    pipes.set(modelId, p);
   }
-  return loading;
+  return pipes.get(modelId);
+}
+
+// Modelleri aynı anda değil sırayla aç: bellek tepe noktası düşük kalsın
+async function loadAll(cfg) {
+  for (const id of cfg.models) await loadModel(id, cfg);
 }
 
 self.onmessage = async ({ data }) => {
   const { id, type } = data;
   try {
     if (type === 'load') {
-      await load(data.cfg);
+      await loadAll(data.cfg);
       self.postMessage({ id, type: 'ready', threads: lib.env.backends.onnx.wasm.numThreads || 1 });
     } else if (type === 'run') {
-      const m = await load(data.cfg);
-      if (task === 'translation') {
-        const out = await m(data.text, { src_lang: data.src, tgt_lang: data.tgt, max_new_tokens: 200, num_beams: 1 });
-        self.postMessage({ id, type: 'result', text: (out?.[0]?.translation_text || '').trim() });
-      } else if (task === 'automatic-speech-recognition') {
+      if (data.cfg.task === 'translation') {
+        // steps: [{ modelId, src_lang?, tgt_lang?, prefix? }] sırayla uygulanır (ara dil üzerinden çeviri)
+        let text = data.text;
+        for (const step of data.steps) {
+          const m = await loadModel(step.modelId, data.cfg);
+          const opts = { max_new_tokens: 200, num_beams: 1 };
+          if (step.src_lang) Object.assign(opts, { src_lang: step.src_lang, tgt_lang: step.tgt_lang });
+          const out = await m((step.prefix ? step.prefix + ' ' : '') + text, opts);
+          text = (out?.[0]?.translation_text || out?.[0]?.generated_text || '').trim();
+          if (!text) break;
+        }
+        self.postMessage({ id, type: 'result', text });
+      } else if (data.cfg.task === 'automatic-speech-recognition') {
+        const m = await loadModel(data.cfg.models[0], data.cfg);
         const out = await m(data.audio, { language: data.language, task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
         self.postMessage({ id, type: 'result', text: (out?.text || '').trim() });
       }

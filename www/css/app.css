@@ -204,3 +204,4 @@ body.face-to-face .pane-b { transform: rotate(180deg); }
 .pack-desc { color: var(--ink-soft); font-size: .88rem; }
 .mic-btn.on { box-shadow: 0 0 0 calc(var(--level, 0) * 14px) rgba(242,118,46,.35); animation: none; transition: box-shadow .08s; }
 .mic-btn.busy { opacity: .6; pointer-events: none; animation: blink 1s infinite; }
+.ai-profile { font-size: .85rem; color: var(--ink-soft); }

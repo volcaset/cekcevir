@@ -23,8 +23,8 @@
    "parts": 4
   },
   "onnx/decoder_model_merged_quantized.onnx": {
-   "size": 188857068,
-   "parts": 12
+   "size": 59276214,
+   "parts": 4
   }
  }
 }

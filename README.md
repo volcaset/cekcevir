@@ -15,7 +15,8 @@ Tarayıcıdan açılır, "Ana ekrana ekle" ile telefona uygulama gibi kurulur.
 1. **v0.1 – Temel uygulama (bu sürüm):** PWA, offline açılış, karşılıklı ekran, okunuş motoru, demo ifade sözlüğü, ülkeye göre bayrak ve lehçe (Mısır vb.), gerçek internet göstergesi, "Çeviriyi düzenle".
 2. **v0.2 – Offline yapay zeka çevirisi:** NLLB-200 modeli (≈920 MB) parça parça, kaldığı yerden devam ederek indirilir; her cümle internetsiz çevrilir. Tatoeba'dan ~26 bin insan çevirisi cümle ve harekesiz Arapça için okunuş sözlüğü.
 3. **v0.3 – Offline mikrofon:** Ses Paketi (OpenAI Whisper small, ≈250 MB, MIT) ile konuşma internetsiz yazıya dökülür; konuşma bitince kayıt kendiliğinden durur.
-4. **Supabase ve geliştirmeler:** geçmiş, yeni diller, App Store / Google Play (Capacitor).
+4. **v0.4 – Telefon paketleri:** Telefon tarayıcıları bir sekmeye sınırlı bellek verdiği için büyük model iPhone'da sekmeyi çökertiyordu. Telefonda artık küçük paketler kullanılır: Türkçe↔Arapça OPUS-MT çeviri (2×118 MB, `www/models/`, `.github/workflows/convert-models.yml` ile üretilir) ve Whisper base ses (≈80 MB). Bilgisayar tam paketlerle devam eder; paket ekranından değiştirilebilir. Model açılırken sayfa çökerse bir sonraki açılışta otomatik yüklenmez, hangi adımda kaldığı gösterilir.
+5. **Supabase ve geliştirmeler:** geçmiş, yeni diller, App Store / Google Play (Capacitor).
 
 ## Klasör yapısı
 ```
@@ -43,6 +44,7 @@ Yayına alırken `www/sw.js` içindeki `VERSION` değerini artırın ki telefonl
 
 ## Kaynaklar ve lisanslar
 - Çeviri modeli: [Meta NLLB-200 distilled 600M](https://huggingface.co/Xenova/nllb-200-distilled-600M) — **CC BY-NC 4.0 (ticari olmayan kullanım)**. Uygulama ücretli/reklamlı olursa lisansı uygun bir modele geçilmeli.
-- Ses tanıma: [OpenAI Whisper small](https://huggingface.co/onnx-community/whisper-small) — MIT.
+- Telefon çeviri modeli: [Helsinki-NLP OPUS-MT tr-ar](https://huggingface.co/Helsinki-NLP/opus-mt-tr-ar) ve [ar-tr](https://huggingface.co/Helsinki-NLP/opus-mt-ar-tr) — Apache-2.0 (ticari kullanıma uygun). ONNX'e çevrilip 8-bit küçültüldü.
+- Ses tanıma: [OpenAI Whisper small / base](https://huggingface.co/onnx-community/whisper-small) — MIT.
 - Cümle seti: [Tatoeba](https://tatoeba.org) — CC BY 2.0 FR. `scripts/build-tatoeba.mjs` ve GitHub Actions ile üretilir.
 - Çalışma motoru: Transformers.js 4.3.2 (Apache-2.0), onnxruntime-web (MIT).

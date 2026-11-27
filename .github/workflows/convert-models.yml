@@ -2,13 +2,10 @@ name: Telefon çeviri modellerini hazırla
 
 # Helsinki-NLP OPUS-MT Türkçe↔Arapça modellerini ONNX'e çevirir, 8-bit küçültür,
 # Transformers.js ile dener ve 16 MB'lık parçalar halinde www/models/ altına koyar.
+# Elle çalıştırılır (Actions → Run workflow); model dosyaları büyük olduğu için
+# her değişiklikte kendiliğinden çalışmaz.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/convert-models.yml'
-      - 'scripts/models/**'
 
 permissions:
   contents: write
@@ -36,6 +33,7 @@ jobs:
           cd /tmp/tjs
           for m in Helsinki-NLP/opus-mt-tr-ar Helsinki-NLP/opus-mt-ar-tr; do
             python -m scripts.convert --quantize --model_id "$m"
+            python "$GITHUB_WORKSPACE/scripts/models/fix_lm_head.py" "models/$m/onnx/decoder_model_merged_quantized.onnx"
           done
           ls -laR models
       - name: Transformers.js ile dene
