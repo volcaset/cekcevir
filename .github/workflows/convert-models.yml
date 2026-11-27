@@ -29,7 +29,8 @@ jobs:
           git clone --depth 1 -b v3 https://github.com/huggingface/transformers.js /tmp/tjs
           pip install -q torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
           grep -vE 'nvidia|graphsurgeon' /tmp/tjs/scripts/requirements.txt > /tmp/req.txt
-          pip install -q -r /tmp/req.txt sentencepiece sacrebleu onnx-graphsurgeon
+          pip install -q -r /tmp/req.txt sentencepiece sacrebleu onnx-graphsurgeon torch==2.4.1 --extra-index-url https://download.pytorch.org/whl/cpu
+          python -c "import torch; print('torch', torch.__version__)"
       - name: ONNX'e çevir ve küçült
         run: |
           cd /tmp/tjs
